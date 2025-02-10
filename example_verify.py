@@ -50,7 +50,8 @@ def code_oj_verify(llm_output, gt_output):
         # print(test) 
         if test['passed']:
             total_passes += 1
-    
+        # else:
+            # print(test)
     return total_passes/ len(test_cases)
 
 def code_function_call_verify(llm_output, gt_output):
@@ -110,6 +111,11 @@ int main() {
     return 0;
 }
 """
+string_code_python="""
+input_str = input()
+a, b = input_str.split()
+print(float(a)/float(b))
+"""
 
 
 
@@ -124,10 +130,21 @@ gt_output_prime = {'test_cases': [{'type': 'stdin_stdout',
                                    'output': '1'}], 
                                    'language': 'cpp'}
 gt_output_string = json.dumps(gt_output_prime)
-llm_response = f'<think>...</think>\n```c++\n{string_code}\n```\n'
+llm_response = f'<think>...</think>\n```c++\n{string_code}\n```\n ok hw'
 
-
-
+llm_response_python = f'<think>...</think>\n```python\n{string_code_python}\n```\n'
+gt_output_prime_python = {'test_cases': [{'type': 'stdin_stdout',   
+                                   'input': '1 2', 
+                                   'output': '0.5'},
+                                   {'type': 'stdin_stdout', 
+                                   'input': '4 5', 
+                                   'output': '0.8'},
+                                   {'type': 'stdin_stdout', 
+                                   'input': '1 1', 
+                                   'output': '1'}], 
+                                   'language': 'python'}
+gt_output_prime_python_string = json.dumps(gt_output_prime_python)
+print(code_oj_verify(llm_response_python, gt_output_prime_python_string))
 print(code_oj_verify(llm_response, gt_output_string))
 
 from datasets import load_dataset
@@ -152,5 +169,35 @@ gt_output_prime = {'test_cases': [{'type': 'function_call', 'fn_name': 'maxScore
 gt_output_prime_string = json.dumps(gt_output_prime)
 print(code_function_call_verify(llm_response, gt_output_prime_string))
 
+
+
+from datasets import load_dataset
+dataset = load_dataset("tuenguyen/verifiable-coding-problems")
+
+def combine_verifiable_coding_problems(llm_response, answer):
+    # First we need to check the answer is function call or testcase 
+    answer_parser = json.loads(answer)
+    if all([item['type']=='function_call' for item in answer_parser['test_cases']]):
+        return code_function_call_verify(llm_response, answer)
+    else:
+        return code_oj_verify(llm_response, answer)
+
+total_pass = 0
+total = 0
+for index, row in enumerate(dataset["train"]):
+    gold_standard_solution = row["gold_standard_solution"]
     
+    if gold_standard_solution is not None:
+        answer = row["answer"]
+        value = combine_verifiable_coding_problems(gold_standard_solution, answer)
+        # if value != 1:
+            # print(index, value)
+        if value == 1:
+            total_pass += 1
+        total += 1
+    if index %1000==0:
+        print(total_pass/total, total_pass, total)
+
+
+
 
